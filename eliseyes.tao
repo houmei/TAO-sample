@@ -1,0 +1,97 @@
+;
+;  elis-window  eweyes...like xeyes
+;  for ELIS8130
+;
+;  IDATEN/K.Takeshita
+;  91/01/22  many many eyes
+;  91/01/12  open-window
+;  91/01/16  process-fork
+;  91/01/18  move eyes
+;
+(de elis-eyes (&optn pname x y sx sy &aux p s w m-box)
+    (unless sx (!sx [*mouse-manager* :mouse-x-pos]))
+    (unless sy (!sy [*mouse-manager* :mouse-y-pos]))
+    (unless x (!x 144))
+    (unless y (!y 100))
+    (unless pname (!pname (gensym "eliseyes")))
+    (defclass graphics-window () () (minimum-window graphics-mixin))
+    (!m-box (make-instance 'mailbox))
+    (!s (make-instance 'standard-window label "eliseyes" label-font-size 16 )) 
+    (!w (make-instance 'graphics-window window-width x window-height y ))
+    [s :add-subwindow w]
+    [s :move-window sx sy]
+    [s :init]
+    [s :expose]
+    (!p (process-fork pname 'eyewindow (list w m-box) :standard-output *standard-output* ))
+    [*window-manager* :register-process pname p]
+    [*window-manager* :register-window p s]
+    (register-hook-function s :reshape #'open-your-eyes w m-box )
+    (register-hook-function s :move #'open-your-eyes w m-box )
+    (open-your-eyes w m-box)
+    
+)
+
+(de eyewindow ( w m-box &aux x y m n a b leye reye px py lcx lcy rcx rcy xx yy)
+    (loop
+        (if (!m (receive-mail-with-timeout 20 m-box))
+          (progn
+              (!a (fifth m)) (!b (sixth m))                   ;eye-move a,b
+              (!leye (make-ellipse 'leye (first m) (second m) (seventh m) (eighth m) w :interior :solid))
+              (!reye (make-ellipse 'reye (third m) (fourth m) (seventh m) (eighth m) w :interior :solid))
+              [leye :display] [reye :display]
+              (!px [w :window-left]) (!py [w :window-top])     ;ph.-window-position
+              (!lcx (first m)) (!lcy (second m))     ;lo.-left-eye-position
+              (!rcx (third m)) (!rcy (fourth m))     ;lo.-right-eye-position
+          )
+        )
+        (progn
+            (!x [*mouse-manager* :mouse-x-pos])
+            (!y [*mouse-manager* :mouse-y-pos])
+            (if (and (eq x xx) (eq y yy)) () 
+                (progn (!xx x) (!yy y)
+                    (!n (eyepoint lcx lcy (- x px) (- y py) a b ))
+                    [leye :move (first n) (second n)]
+                    (!n (eyepoint rcx rcy (- x px) (- y py) a b ))
+                    [reye :move (first n) (second n)]
+                )
+            )
+        )
+    )
+)
+
+(de eyepoint (cx cy mx my a b &aux m n x y ax ay)
+    (!x (- mx cx)) (!y (- my cy))
+    (!n (* a a b b))
+    (!m (+ (* b b x x) (* a a y y)))
+    (if (< m n)
+        (list mx my)
+        (progn
+            (!ax (sqrt (/ (* n x x) m)))
+            (!ay (sqrt (/ (* n y y) m)))
+            (list (+ (* (signum x) ax) cx) (+ (* (signum y) ay) cy) )
+        )
+    )
+)
+
+(de open-your-eyes (w m-box &aux wx wy rx ry rxi ryi lcx lcy rcx rcy mrx mry erx ery )
+    (progn
+        (!wx [w :window-width])
+        (!wy [w :window-height])
+        (!rx (* (/ wx 4) 0.9) ) (!rxi (* rx 0.8))
+        (!ry (* (/ wy 2) 0.9) ) (!ryi (* ry 0.8))
+        (!lcx (/ wx 4)) (!rcx (- wx (/ wx 4)))
+        (!lcy (/ wy 2)) (!rcy lcy)
+        [w :clear-rectangle 0 0 wx wy]
+        [w :fill-ellipse lcx lcy rx ry :solid ]
+        [w :fill-ellipse rcx rcy rx ry :solid ]
+        [w :fill-ellipse lcx lcy rxi ryi :solid :white]
+        [w :fill-ellipse rcx rcy rxi ryi :solid :white]
+        (!mrx (* rxi 0.8)) (!mry (* ryi 0.8))
+        (!erx (* mrx 0.2)) (!ery (* mry 0.2))
+        (send-mail m-box (list lcx lcy rcx rcy mrx mry erx ery))
+        'ok
+    )
+)
+
+(elis-eyes)
+
