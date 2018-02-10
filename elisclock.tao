@@ -1,0 +1,101 @@
+;  elis-window clock ...like xclock
+;  for ELIS8130
+;
+;  IDATEN/K.Takeshita
+;
+;
+;  91/01/28  deketadeketa
+;  91/01/26  movement
+;  91/01/23
+;  
+(de elis-clock (&optn sx sy x y &aux p s w )
+    (unless sx (!sx [*mouse-manager* :mouse-x-pos]))
+    (unless sy (!sy [*mouse-manager* :mouse-y-pos]))
+    (unless x (!x 100))
+    (unless y (!y 100))
+    (defclass graphics-window () () (minimum-window graphics-mixin))
+
+    (!s (make-instance 'standard-window label "時 計" ))
+    (!w (make-instance 'graphics-window window-width x window-height y))
+    [s :add-subwindow w]
+    [s :move-window sx sy]
+    [s :init]
+    [s :expose]
+
+    (!p (process-fork 'clock 'movement (list w) :standard-output *standard-output* ))
+    [*window-manager* :register-process "clock" p]
+    [*window-manager* :register-window p s]
+    (register-hook-function s :reshape #'process-preset p 'movement (list w) )
+
+)
+
+(de draw-scale ( w &aux x1 y1 x2 y2 cx cy r ri i width)
+    (!cx ( / [w :window-width] 2 ))
+    (!cy ( / [w :window-height] 2 ))
+    (!r ( * (min cx cy) 0.95 ))
+    [w :clear-rectangle 0 0 [w :window-width] [w :window-height] ]
+    (for i (index 0 15) 
+        (progn
+            (!x1 (* r (sin (/ (* pi i) 30))))
+            (!y1 (* r (cos (/ (* pi i) 30))))
+            (if (zerop (mod i 5)) 
+                (progn (!ri (* r 0.92)) (!width 2))
+                (progn (!ri (* r 0.95)) (!width 1))
+            )
+            (!x2 (* ri (sin (/ (* pi i) 30))))
+            (!y2 (* ri (cos (/ (* pi i) 30))))
+            [w :draw-line (+ cx x2) (+ cy y2) (+ cx x1) (+ cy y1) width :solid :black]
+            [w :draw-line (+ cx x2) (- cy y2) (+ cx x1) (- cy y1) width :solid :black]
+            [w :draw-line (- cx x2) (+ cy y2) (- cx x1) (+ cy y1) width :solid :black]
+            [w :draw-line (- cx x2) (- cy y2) (- cx x1) (- cy y1) width :solid :black]
+        )
+    )        
+
+    [w :draw-circle cx cy r]
+    (list cx cy r)
+)
+
+(de 針 ( w r cx cy tim width col )
+    (let 
+     ((x (+ cx (* r (sin (/ (* pi tim) 30)))))
+     (y (- cy (* r (cos (/ (* pi tim) 30))))))
+     [w :draw-line cx cy x y width :solid col])
+)
+
+(de hour24 ( tim )
+    (+ (* (third tim) 5) (/ (second tim) 12))
+) 
+
+(de movement ( w &aux arg cx cy secr minr hour tim tick tt sw mw hw)    
+    (let
+    ((arg (draw-scale w))
+    (cx (first arg)) 
+    (cy (second arg))
+    (secr ( * (third arg) 0.9 )) (sw 1)
+    (minr ( * (third arg) 0.85 )) (mw 2)
+    (hour ( * (third arg) 0.6 )) (hw 3)
+    (tim (multiple-value-list (get-decoded-time)) )
+    (tick (first tim)))
+    (progn
+    (針 w secr cx cy (first tim) sw :black)
+    (針 w minr cx cy (second tim) mw :black)
+    (針 w hour cx cy (hour24 tim) hw :black)
+
+    (loop
+        (progn 
+            (loop
+                (:while (eq tick (get-decoded-time)) (!tick (first (!tim (multiple-value-list (get-decoded-time))))))
+                (sleep 0 50)
+            )            
+            (針 w secr cx cy (- (first tim) 1) sw :white)
+            (針 w minr cx cy (- (second tim) 1) mw :white)
+            (針 w hour cx cy (- (hour24 tim) 1) hw :white)
+            (針 w secr cx cy (first tim) sw :black)
+            (針 w minr cx cy (second tim) mw :black)
+	    (針 w hour cx cy (hour24 tim) hw :black)
+	    ) 
+	))
+    )
+)
+ 
+(elis-clock)

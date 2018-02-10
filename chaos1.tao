@@ -1,0 +1,55 @@
+;  strange atructor demo
+;  for ELIS8130
+;
+;  IDATEN/K.Takeshita
+;  ComputerToday 1989/7
+;
+;  1991/02/09
+  
+(de chaos1 (&optn sx sy x y &aux p s w )
+    (unless sx (!sx [*mouse-manager* :mouse-x-pos]))
+    (unless sy (!sy [*mouse-manager* :mouse-y-pos]))
+    (unless x (!x 200))
+    (unless y (!y 200))
+    (defclass graphics-window () () (minimum-window graphics-mixin))
+    (!s (make-instance 'standard-window label "chaos" ))
+    (!w (make-instance 'graphics-window window-width x window-height y ))
+    [s :add-subwindow w]
+    [s :move-window sx sy]
+    [s :init]
+    [s :expose]
+
+    (!p (process-fork 'chaos 'draw-chaos (list w) :completion-message nil ))
+    [*window-manager* :register-process "chaos" p]
+    [*window-manager* :register-window p s]
+    (register-hook-function s :reshape #'process-preset p 'draw-chaos (list w) )
+
+)
+
+(de fnf(x a)
+    (+ 1 (* a x) (/ (* 4 x x) (+ 1 (* x x))))
+)
+
+(de draw-chaos ( w &optn a b da xi yi &aux x y ox oy)    
+    (unless a (!a 1.56))
+    (unless da (!da 0.01))
+    (unless b (!b -0.99))
+    (!xi 0.1) (!yi 0) (!x0 xi) (!y0 yi) (!dx .1)
+    [w :set-coordinate-mode :right-upper]
+    (!x (/ [w :window-width] 2))
+    (!y (/ [w :window-height] 2))
+    (!ox (/ x 10))
+    (!oy (/ x 10))
+    [w :set-origin x y]
+    [w :clear-window]
+    (loop (&aux count) (:init (!count 10000) )
+	(:while (> count 1) ) 
+        ( dec count )
+	(!x (- y0 (fnf x0 a))) (!y (* b x0))
+        [w :blacken-rectangle (* x ox) (* y oy) 1 1]
+	(!x0 x) (!y0 y)
+	( if (> (+ (abs x) (abs y)) 100) (progn (!x0 xi) (!y0 yi)) )
+    )
+)
+
+(chaos1)

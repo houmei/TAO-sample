@@ -1,0 +1,68 @@
+; [elis]bs:mandel.tao.4, 10-Feb-91 15:47:43, Edit by Idaten
+;  mandelbrot set
+;  for ELIS8130
+;
+;  IDATEN/K.Takeshita
+;  フラクタルＣＧコレクション/サイエンス社
+;
+;  1991/02/10
+  
+(de mandel (&optn sx sy x y &aux p s w )
+    (unless sx (!sx [*mouse-manager* :mouse-x-pos]))
+    (unless sy (!sy [*mouse-manager* :mouse-y-pos]))
+    (unless x (!x 200))
+    (unless y (!y 200))
+    (defclass graphics-window () () (minimum-window graphics-mixin))
+    (!s (make-instance 'standard-window label "mandelbrot" label-font-size 16))
+    (!w (make-instance 'graphics-window window-width x window-height y ))
+    [s :add-subwindow w]
+    [s :move-window sx sy]
+    [s :init]
+    [s :expose]
+
+    (!p (process-fork 'mandel 'draw-mandel (list w) :completion-message nil ))
+    [*window-manager* :register-process "mandel" p]
+    [*window-manager* :register-window p s]
+    (register-hook-function s :reshape #'process-preset p 'draw-mandel (list w) )
+
+)
+
+
+
+(de draw-mandel ( w &optn KL KS SP EP &aux xs ys cr ci c DV A Z)    
+    (unless KL (!KL 100))  ; 最大繰り返し回数
+    (unless KS (!KS 200))  ; 分割数
+    (unless SP (!SP '#c(-2.2 -1.35) ))  ; 始点
+    (unless EP (!EP '#c(0.5 1.35)   ))  ; 終点
+
+    (!DV (/ (- EP SP) KS) )  ; 増分
+
+    (!xs (/ [w :window-width] KS))
+    (!ys (/ [w :window-height] KS))
+    [w :set-coordinate-mode :right-upper]
+    [w :clear-window]
+
+    (loop (:init (!cr (realpart SP)) (!y 0))
+	  (:while (< cr (realpart EP)))
+	  (sleep 0 2)
+	  (loop (:init (!ci (imagpart SP)) (!x 0))
+		(:while (< ci (imagpart EP)))
+		(! Z '#c(0 0))
+		(loop (&aux k) (:init (! k 0))
+		      (:while (< k KL))
+		      (inc k)
+		      (!A (+ (* Z Z) (complex cr ci)))
+		      (if (< (abs A) 2) (progn (!Z A) (cycle)))
+		      (!c (mod k 10))
+		      [w :fill-rectangle x y [x + xs]  [y + ys] :solid ]
+		      (!k KL)
+		)
+		      [w :fill-rectangle x y [x + xs]  [y + ys] :solid ]
+	        (inc ci (imagpart DV) ) (inc x xs)
+	  )
+	  (inc cr (realpart DV) ) (inc y ys)
+    )
+)
+
+
+(mandel)
